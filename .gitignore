@@ -1,0 +1,23 @@
+# Binaries and Go test artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Local generated output
+.tmp/
+bin/
+dist/
+out/
+/procrustes
+
+# Go workspace and local environment
+go.work
+go.work.sum
+.env

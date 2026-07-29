@@ -1,0 +1,9 @@
+type: Test
+spec:
+  id: checkout
+  name: Checkout
+  trigger:
+    type: http
+    httpRequest:
+      url: http://${var:FRONTEND_ADDR}/checkout
+      method: GET

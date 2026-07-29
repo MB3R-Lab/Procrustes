@@ -1,0 +1,13 @@
+contract:
+  name: io.mb3r.procrustes.goal
+  version: 0.1.0
+scope:
+  namespaces: [default]
+  services: [frontend, checkout]
+operation:
+  id: checkout
+  entry_service: frontend
+  method: GET
+  path: /checkout
+  mandatory_targets: [checkout]
+  scenario_ref: checkout.yaml

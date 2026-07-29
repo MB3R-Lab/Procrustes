@@ -1,0 +1,27 @@
+{
+  "spans": [
+    {
+      "trace_id": "deathstar-hotel-search",
+      "span_id": "frontend-1",
+      "service": "frontend",
+      "kind": "server",
+      "name": "GET /hotels",
+      "start_time": "2026-07-29T00:00:00Z",
+      "end_time": "2026-07-29T00:00:00.010Z",
+      "attributes": {
+        "http.request.method": "GET",
+        "http.route": "/hotels"
+      }
+    },
+    {
+      "trace_id": "deathstar-hotel-search",
+      "span_id": "search-1",
+      "parent_span_id": "frontend-1",
+      "service": "search",
+      "kind": "server",
+      "name": "SearchHotels",
+      "start_time": "2026-07-29T00:00:00.002Z",
+      "end_time": "2026-07-29T00:00:00.008Z"
+    }
+  ]
+}

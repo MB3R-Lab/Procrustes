@@ -1,0 +1,27 @@
+{
+  "spans": [
+    {
+      "trace_id": "deathstar-social-compose-post",
+      "span_id": "nginx-1",
+      "service": "nginx-web-server",
+      "kind": "server",
+      "name": "POST /wrk2-api/post/compose",
+      "start_time": "2026-07-29T00:00:00Z",
+      "end_time": "2026-07-29T00:00:00.020Z",
+      "attributes": {
+        "http.request.method": "POST",
+        "http.route": "/wrk2-api/post/compose"
+      }
+    },
+    {
+      "trace_id": "deathstar-social-compose-post",
+      "span_id": "compose-post-1",
+      "parent_span_id": "nginx-1",
+      "service": "compose-post-service",
+      "kind": "server",
+      "name": "compose_post_server",
+      "start_time": "2026-07-29T00:00:00.004Z",
+      "end_time": "2026-07-29T00:00:00.018Z"
+    }
+  ]
+}
