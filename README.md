@@ -5,7 +5,9 @@
 
 ## Related MB3R repositories
 
-Procrustes prepares a static eligibility handoff for [Bering](https://github.com/MB3R-Lab/Bering), which owns runtime model discovery and publishes topology artifacts. [Sheaft](https://github.com/MB3R-Lab/Sheaft) consumes Bering artifacts for resilience analysis and CI/CD decisions.
+Procrustes prepares a static eligibility handoff for [Bering](https://github.com/MB3R-Lab/Bering), which owns runtime model discovery and publishes topology artifacts. [Sheaft v1.3.1](https://github.com/MB3R-Lab/Sheaft/releases/tag/v1.3.1) consumes Bering artifacts for resilience analysis and CI/CD decisions.
+
+[mb3r-stack](https://github.com/MB3R-Lab/mb3r-stack) packages a source-pinned Procrustes preflight launcher alongside the Bering/Sheaft integration bundle; Procrustes is not a persistent Kubernetes service. The [separate reproduction repository](https://github.com/MB3R-Lab/mb3r-software-complex-repro) contains the versioned three-tool demonstration, experiment inputs, and reference results.
 
 Procrustes is a deterministic local preflight. It checks whether deployment, tracing, and reproducible-operation artifacts provide enough static evidence for Bering to attempt an operation-specific, replica-aware model.
 
