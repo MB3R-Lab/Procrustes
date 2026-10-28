@@ -1,6 +1,8 @@
 # Contracts
 
 Procrustes currently exposes three preview JSON/YAML contracts at `0.1.0`.
+An explicit `ebpf-obi` collection selection emits the backward-compatible
+report and collection-plan `0.2.0` contracts; the goal remains `0.1.0`.
 
 ## Goal
 
@@ -8,7 +10,7 @@ Procrustes currently exposes three preview JSON/YAML contracts at `0.1.0`.
 
 ## Report
 
-`io.mb3r.procrustes.report@0.1.0` contains:
+Both `io.mb3r.procrustes.report@0.1.0` (native) and `@0.2.0` (explicit OBI) contain:
 
 - source fingerprint and normalized goal
 - per-service facts and detected tracing systems
@@ -20,7 +22,7 @@ The report is diagnostic evidence, not a release verdict.
 
 ## Collection plan
 
-`io.mb3r.procrustes.collection-plan@0.1.0` tells Bering what runtime evidence to collect:
+The native `io.mb3r.procrustes.collection-plan@0.1.0` tells Bering what runtime evidence to collect:
 
 - selected operation and expected services
 - reproducible scenarios
@@ -28,6 +30,11 @@ The report is diagnostic evidence, not a release verdict.
 - required and recommended telemetry attributes
 - known static limitations
 - the adjacent Bering overlay filename
+
+The explicit OBI `io.mb3r.procrustes.collection-plan@0.2.0` keeps those fields
+and selects `bering_input: ebpf-obi`, adding the deployment `domain` shared by
+its agents. These values record operator intent, not observed coverage. The
+corresponding report keeps runtime collection facts `UNKNOWN` until measured.
 
 ## Bering overlay
 

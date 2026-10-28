@@ -16,6 +16,12 @@ The current emitted and accepted contracts are:
 - `io.mb3r.procrustes.report@0.1.0`
 - `io.mb3r.procrustes.collection-plan@0.1.0`
 
+An explicit `ebpf-obi` collection selection emits
+`io.mb3r.procrustes.report@0.2.0` and
+`io.mb3r.procrustes.collection-plan@0.2.0`. These add the declared collection
+domain and source-specific static status semantics. Default native output keeps
+the `0.1.0` report and collection-plan contracts. The goal remains `0.1.0`.
+
 These versions are independent from Bering model and snapshot schema versions. `bering.overlay.yaml` follows Bering's overlay input rather than defining a separate Procrustes topology contract.
 
 Rules:

@@ -56,10 +56,46 @@ go run ./cmd/procrustes analyze \
 General form:
 
 ```text
-procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--fail-on-blocked]
+procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi] [--source-domain <deployment>] [--fail-on-blocked]
 ```
 
 A source can be a directory or a supported manifest, configuration, module, or source file. Explicit aliases keep evidence paths stable across machines.
+
+### Explicit OBI eBPF collection
+
+Select `--collection-source ebpf-obi` when an external OBI installation will
+export OTLP traces. This option does not deploy OBI, require an application SDK,
+or certify that the kernel, processes, protocols, and trace context are covered.
+Procrustes records these runtime questions as `UNKNOWN`; the selected capability
+remains `PARTIAL` when deployment and operation facts are otherwise valid.
+Confirmed workload identities and real conflicts remain visible. The default
+`native` selection keeps its existing SDK, exporter, and propagation checks.
+
+```text
+procrustes analyze --source deployment=./manifests --goal goal.yaml \
+  --collection-source ebpf-obi --source-domain production --out-dir preflight
+
+bering discover --input ./obi-capture --input-type ebpf-obi \
+  --source-domain production --overlay preflight/bering.overlay.yaml \
+  --out model.json --snapshot-out snapshot.json
+```
+
+The collection plan records `bering_input: ebpf-obi` and `domain: production`.
+For continuous ingest, configure Bering 1.1.0 with a declared source, then point
+the external OBI OTLP/HTTP exporter at its source-scoped endpoint:
+
+```yaml
+sources:
+  - id: obi-main
+    type: ebpf-obi
+    domain: production
+    capture_directory: /var/lib/bering/obi-capture
+```
+
+`POST /sources/obi-main/v1/traces` is the Bering endpoint. Use the same domain
+for agents in one collection deployment; it is not a host or replica label.
+The collection plan is a handoff instruction. Only Bering's accepted exports,
+observed identities, and signal quality can establish actual coverage.
 
 ## Outputs
 
@@ -105,6 +141,7 @@ Kubernetes environment resolution supports literals, downward API `fieldRef`, av
 ### Tracing
 
 - OpenTelemetry identity, SDK or Operator instrumentation basis, OTLP exporter, Collector traces pipeline, and W3C propagation
+- explicit OBI collection selection with static deployment and operation checks; runtime eBPF coverage remains unknown
 - Jaeger/OpenTracing backend, configuration, literal service identity, initialization, and propagation
 - conservative inventory evidence for Zipkin, Grafana Tempo, and Apache SkyWalking
 

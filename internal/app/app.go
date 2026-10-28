@@ -49,12 +49,18 @@ func (r *Runner) runAnalyze(args []string) int {
 	fs.Var(&sourceValues, "source", "Static source in alias=path form; repeatable")
 	goalPath := fs.String("goal", "", "Path to the Procrustes goal YAML")
 	outDir := fs.String("out-dir", "", "Directory for report and handoff artifacts")
+	collectionSource := fs.String("collection-source", "native", "Trace collection source: native or ebpf-obi")
+	sourceDomain := fs.String("source-domain", "default", "OBI collection deployment domain, shared by its agents")
 	failOnBlocked := fs.Bool("fail-on-blocked", false, "Return exit code 2 when the selected capability is blocked")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if strings.TrimSpace(*goalPath) == "" || strings.TrimSpace(*outDir) == "" {
 		fmt.Fprintln(r.stderr, "--goal and --out-dir are required")
+		return 1
+	}
+	if err := analyze.ValidateCollection(*collectionSource, *sourceDomain); err != nil {
+		fmt.Fprintf(r.stderr, "collection source: %v\n", err)
 		return 1
 	}
 	sources, err := source.ParseSpecs(sourceValues)
@@ -78,6 +84,7 @@ func (r *Runner) runAnalyze(args []string) int {
 	}
 	report := analyze.Run(analyze.Input{
 		Goal: goal, Sources: sources, Fingerprint: source.Fingerprint(goalRaw, files), Inventory: scan.Files(files),
+		CollectionSource: *collectionSource, SourceDomain: *sourceDomain,
 	})
 	if err := output.Write(*outDir, report); err != nil {
 		fmt.Fprintf(r.stderr, "write result: %v\n", err)
@@ -93,7 +100,7 @@ func (r *Runner) runAnalyze(args []string) int {
 
 func (r *Runner) usage() {
 	fmt.Fprintln(r.stderr, "Usage:")
-	fmt.Fprintln(r.stderr, "  procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--fail-on-blocked]")
+	fmt.Fprintln(r.stderr, "  procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi] [--source-domain <deployment>] [--fail-on-blocked]")
 	fmt.Fprintln(r.stderr, "  procrustes version")
 }
 

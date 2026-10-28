@@ -1,7 +1,10 @@
 package analyze
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -10,22 +13,62 @@ import (
 )
 
 type Input struct {
-	Goal        model.Goal
-	Sources     []model.Source
-	Fingerprint string
-	Inventory   scan.Inventory
+	Goal             model.Goal
+	Sources          []model.Source
+	Fingerprint      string
+	Inventory        scan.Inventory
+	CollectionSource string
+	SourceDomain     string
+}
+
+var sourceDomainPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+
+func ValidateCollection(source, domain string) error {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		source = "native"
+	}
+	if source != "native" && source != "ebpf-obi" {
+		return fmt.Errorf("unsupported collection source %q", source)
+	}
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		domain = "default"
+	}
+	if !sourceDomainPattern.MatchString(domain) {
+		return fmt.Errorf("invalid collection domain %q", domain)
+	}
+	if source == "native" && domain != "default" {
+		return fmt.Errorf("--source-domain applies only to ebpf-obi")
+	}
+	return nil
 }
 
 func Run(input Input) model.Report {
+	source := strings.TrimSpace(input.CollectionSource)
+	if source == "" {
+		source = "native"
+	}
+	domain := strings.TrimSpace(input.SourceDomain)
+	if domain == "" {
+		domain = "default"
+	}
 	services := assessServices(input.Goal, input.Inventory)
+	if source == "ebpf-obi" {
+		services = assessEBPFServices(services)
+	}
 	operationFacts, matchedScenarios := assessOperation(input.Goal, services, input.Inventory)
 	capabilities := assessCapabilities(services, operationFacts)
-	blockers, remediation := findings(services, operationFacts)
+	blockers, remediation := findingsForSource(services, operationFacts, source)
 	limitations := []string{
 		"Procrustes evaluates static eligibility only; Bering must validate runtime evidence, coverage, and signal quality.",
-		"DECLARED instrumentation and propagation remain runtime assumptions until matching traces are observed.",
 	}
-	if usesBackendSpecificTracing(services) {
+	if source == "ebpf-obi" {
+		limitations = append(limitations, "The selected OBI source does not prove kernel access, target coverage, OTLP delivery, or cross-service context; inspect Bering runtime evidence.")
+	} else {
+		limitations = append(limitations, "DECLARED instrumentation and propagation remain runtime assumptions until matching traces are observed.")
+	}
+	if source != "ebpf-obi" && usesBackendSpecificTracing(services) {
 		limitations = append(limitations,
 			"Backend-specific tracing may require a source adapter before Bering ingestion; EXPECTED means that the static collection path is complete, not that runtime trace quality is proven.",
 		)
@@ -34,12 +77,22 @@ func Run(input Input) model.Report {
 		limitations = append(limitations, diagnostic)
 	}
 	limitations = uniqueSorted(limitations)
+	traceSources := traceCollectionPlan(services, input.Inventory.TraceSystems)
+	planVersion, reportVersion := model.PlanContractVersion, model.ReportContractVersion
+	if source == "ebpf-obi" {
+		planVersion, reportVersion = model.PlanContractVersionEBPF, model.ReportContractVersionEBPF
+		traceSources = []model.TraceCollection{{
+			System: "obi", Collection: "Collect and retain OBI OTLP exports for the selected operation; Bering checks actual coverage",
+			BeringInput: "ebpf-obi", Domain: domain, AdapterRequired: false,
+			Evidence: []model.Evidence{{Source: "operator", Field: "--collection-source/--source-domain"}},
+		}}
+	}
 	plan := model.CollectionPlan{
-		Contract:                   model.Contract{Name: model.PlanContractName, Version: model.PlanContractVersion},
+		Contract:                   model.Contract{Name: model.PlanContractName, Version: planVersion},
 		Operation:                  input.Goal.Operation,
 		ExpectedServices:           append([]string(nil), input.Goal.Scope.Services...),
 		Scenarios:                  matchedScenarios,
-		TraceSources:               traceCollectionPlan(services, input.Inventory.TraceSystems),
+		TraceSources:               traceSources,
 		RequiredResourceAttributes: []string{"service.name"},
 		RecommendedAttributes:      []string{"deployment.environment.name", "service.namespace", "service.version"},
 		KnownLimitations:           limitations,
@@ -56,10 +109,15 @@ func Run(input Input) model.Report {
 			break
 		}
 	}
+	fingerprint := input.Fingerprint
+	if source == "ebpf-obi" {
+		digest := sha256.Sum256([]byte(input.Fingerprint + "\x00collection-source=ebpf-obi\x00domain=" + domain))
+		fingerprint = "sha256:" + hex.EncodeToString(digest[:])
+	}
 	return model.Report{
-		Contract:       model.Contract{Name: model.ReportContractName, Version: model.ReportContractVersion},
+		Contract:       model.Contract{Name: model.ReportContractName, Version: reportVersion},
 		ToolVersion:    model.ToolVersion,
-		Fingerprint:    input.Fingerprint,
+		Fingerprint:    fingerprint,
 		Goal:           input.Goal,
 		Sources:        sourceNames,
 		GoalStatus:     goalStatus,
@@ -106,6 +164,63 @@ func traceCollectionPlan(services []model.ServiceAssessment, systems []model.Tra
 		return result[i].System+"/"+result[i].Evidence[0].Source < result[j].System+"/"+result[j].Evidence[0].Source
 	})
 	return result
+}
+
+func assessEBPFServices(services []model.ServiceAssessment) []model.ServiceAssessment {
+	for i := range services {
+		service := &services[i]
+		if service.WorkloadEvidence.Status != model.FactConfirmed {
+			continue
+		}
+		evidence := []model.Evidence{{Source: "operator", Field: "--collection-source=ebpf-obi"}}
+		if service.Identity.Status == model.FactAbsent || service.Identity.Status == model.FactUnknown {
+			service.Identity = model.Fact{
+				ID: service.Identity.ID, Status: model.FactUnknown,
+				Message:  "Workload identity is selected, but its OBI-emitted service.name and namespace need runtime confirmation",
+				Evidence: append(evidence, service.WorkloadEvidence.Evidence...),
+			}
+		}
+		service.Instrumentation = model.Fact{
+			ID: service.Instrumentation.ID, Status: model.FactUnknown,
+			Message:  "OBI collection is selected; kernel access, target support, and actual process coverage are not statically established",
+			Evidence: evidence,
+		}
+		service.Exporter = model.Fact{
+			ID: service.Exporter.ID, Status: model.FactUnknown,
+			Message:  "OBI-to-Bering OTLP delivery and retained exports require runtime verification; no application SDK exporter is required",
+			Evidence: evidence,
+		}
+		service.Propagation = model.Fact{
+			ID: service.Propagation.ID, Status: model.FactUnknown,
+			Message:  "Cross-service trace context and complete operation coverage must be observed by Bering",
+			Evidence: evidence,
+		}
+	}
+	return services
+}
+
+func findingsForSource(services []model.ServiceAssessment, operationFacts []model.Fact, source string) ([]model.Finding, []model.Finding) {
+	blockers, remediation := findings(services, operationFacts)
+	if source != "ebpf-obi" {
+		return blockers, remediation
+	}
+	adapt := func(items []model.Finding) {
+		for i := range items {
+			switch items[i].RuleID {
+			case "identity.unique":
+				items[i].Action = "Verify Bering's observed service.name and namespace against the scoped workload identity."
+			case "instrumentation.basis":
+				items[i].Action = "Deploy OBI separately and verify kernel permissions, target support, and observed process coverage."
+			case "export.traces_path":
+				items[i].Action = "Configure OBI OTLP export to the declared Bering source and verify accepted exports."
+			case "propagation.http":
+				items[i].Action = "Inspect actual cross-service context links and operation coverage in Bering."
+			}
+		}
+	}
+	adapt(blockers)
+	adapt(remediation)
+	return blockers, remediation
 }
 
 func assessServices(goal model.Goal, inventory scan.Inventory) []model.ServiceAssessment {
