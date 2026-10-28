@@ -1,6 +1,8 @@
 # Contracts
 
 Procrustes currently exposes three preview JSON/YAML contracts at `0.1.0`.
+An explicit `ebpf-obi` collection selection emits the backward-compatible
+report and collection-plan `0.2.0` contracts; the goal remains `0.1.0`.
 
 ## Goal
 
@@ -25,6 +27,9 @@ The report is diagnostic evidence, not a release verdict.
 - selected operation and expected services
 - reproducible scenarios
 - backend-specific trace source and required adapter, when applicable
+- for an explicitly selected OBI source, `bering_input: ebpf-obi` and the
+  deployment `domain` shared by its agents; this is operator intent, not proof
+  of observed coverage
 - required and recommended telemetry attributes
 - known static limitations
 - the adjacent Bering overlay filename

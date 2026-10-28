@@ -1,17 +1,19 @@
 package model
 
 const (
-	GoalContractName       = "io.mb3r.procrustes.goal"
-	GoalContractVersion    = "0.1.0"
-	ReportContractName     = "io.mb3r.procrustes.report"
-	ReportContractVersion  = "0.1.0"
-	PlanContractName       = "io.mb3r.procrustes.collection-plan"
-	PlanContractVersion    = "0.1.0"
-	ToolVersion            = "0.1.0"
-	CapabilityInventory    = "service_inventory"
-	CapabilityTopology     = "candidate_topology"
-	CapabilityOperation    = "operation_specific_model"
-	CapabilityReplicaAware = "replica_aware_model"
+	GoalContractName          = "io.mb3r.procrustes.goal"
+	GoalContractVersion       = "0.1.0"
+	ReportContractName        = "io.mb3r.procrustes.report"
+	ReportContractVersion     = "0.1.0"
+	ReportContractVersionEBPF = "0.2.0"
+	PlanContractName          = "io.mb3r.procrustes.collection-plan"
+	PlanContractVersion       = "0.1.0"
+	PlanContractVersionEBPF   = "0.2.0"
+	ToolVersion               = "0.1.0"
+	CapabilityInventory       = "service_inventory"
+	CapabilityTopology        = "candidate_topology"
+	CapabilityOperation       = "operation_specific_model"
+	CapabilityReplicaAware    = "replica_aware_model"
 )
 
 type Contract struct {
@@ -133,6 +135,7 @@ type TraceCollection struct {
 	System          string     `json:"system"`
 	Collection      string     `json:"collection"`
 	BeringInput     string     `json:"bering_input"`
+	Domain          string     `json:"domain,omitempty"`
 	AdapterRequired bool       `json:"adapter_required"`
 	Evidence        []Evidence `json:"evidence,omitempty"`
 }

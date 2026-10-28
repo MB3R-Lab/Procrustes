@@ -4,6 +4,7 @@
 
 - rendered Kubernetes and Docker Compose deployment evidence
 - OpenTelemetry and Jaeger/OpenTracing paths
+- explicit OBI eBPF collection handoff without application SDK requirements
 - conservative inventory for Zipkin, Grafana Tempo, and Apache SkyWalking
 - one synchronous HTTP operation
 - exact Tracetest method/path matching
@@ -24,5 +25,12 @@
 `EXPECTED` means the required static path is present and Bering can attempt the requested discovery. It does not mean the eventual model is complete or trustworthy.
 
 Backend-specific tracing can require an adapter in the collection stage. The adapter requirement is recorded in the collection plan. A missing application-to-backend link remains `UNKNOWN`, `ABSENT`, or `CONFLICT` and lowers the affected capability.
+
+With `--collection-source ebpf-obi`, application SDK/exporter absence is not a
+collection blocker. Static analysis cannot confirm OBI kernel access, process or
+protocol coverage, OTLP delivery, observed service identity, or distributed
+context. These remain `UNKNOWN`; Bering must inspect actual exports and signal
+quality. Workload identity conflicts and missing deployment evidence still block
+the corresponding capability.
 
 Secret values are never resolved or printed. Their dependent facts remain `UNKNOWN`.
