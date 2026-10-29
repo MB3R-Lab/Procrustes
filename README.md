@@ -81,7 +81,7 @@ bering discover --input ./obi-capture --input-type ebpf-obi \
 ```
 
 The collection plan records `bering_input: ebpf-obi` and `domain: production`.
-For continuous ingest, configure [Bering 1.1.1](https://github.com/MB3R-Lab/Bering/releases/tag/v1.1.1) with a declared source, then point
+For continuous ingest, configure [Bering 1.2.0](https://github.com/MB3R-Lab/Bering/releases/tag/v1.2.0) with a declared source, then point
 the external OBI OTLP/HTTP exporter at its source-scoped endpoint:
 
 ```yaml
