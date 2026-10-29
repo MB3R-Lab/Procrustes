@@ -18,32 +18,18 @@ type Input struct {
 	Fingerprint      string
 	Inventory        scan.Inventory
 	CollectionSource string
-	Collector        string
 	SourceDomain     string
 }
 
 var sourceDomainPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
-var collectorPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 func ValidateCollection(source, domain string) error {
-	return ValidateCollectionProfile(source, "", domain)
-}
-
-func ValidateCollectionProfile(source, collector, domain string) error {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		source = "native"
 	}
 	if source != "native" && source != "ebpf-obi" && source != "ebpf-otlp" {
 		return fmt.Errorf("unsupported collection source %q", source)
-	}
-	collector = strings.ToLower(strings.TrimSpace(collector))
-	if source == "ebpf-otlp" {
-		if !collectorPattern.MatchString(collector) {
-			return fmt.Errorf("ebpf-otlp requires a valid --collector matching [a-z0-9][a-z0-9._-]{0,63}")
-		}
-	} else if collector != "" {
-		return fmt.Errorf("--collector applies only to ebpf-otlp")
 	}
 	domain = strings.TrimSpace(domain)
 	if domain == "" {
@@ -63,17 +49,13 @@ func Run(input Input) model.Report {
 	if source == "" {
 		source = "native"
 	}
-	collector := strings.ToLower(strings.TrimSpace(input.Collector))
-	if source == "ebpf-obi" {
-		collector = "obi"
-	}
 	domain := strings.TrimSpace(input.SourceDomain)
 	if domain == "" {
 		domain = "default"
 	}
 	services := assessServices(input.Goal, input.Inventory)
 	if isEBPFCollection(source) {
-		services = assessEBPFServices(services, source, collector)
+		services = assessEBPFServices(services, source)
 	}
 	operationFacts, matchedScenarios := assessOperation(input.Goal, services, input.Inventory)
 	capabilities := assessCapabilities(services, operationFacts)
@@ -109,9 +91,9 @@ func Run(input Input) model.Report {
 	} else if source == "ebpf-otlp" {
 		planVersion, reportVersion = model.PlanContractVersionEBPFOTLP, model.ReportContractVersionEBPFOTLP
 		traceSources = []model.TraceCollection{{
-			System: collector, Collection: "Collect and retain OTLP exports from the declared eBPF collector for the selected operation; Bering checks actual coverage",
+			System: "ebpf-otlp", Collection: "Collect and retain generic eBPF OTLP exports for the selected operation; Bering checks actual coverage",
 			BeringInput: "ebpf-otlp", Domain: domain, AdapterRequired: false,
-			Evidence: []model.Evidence{{Source: "operator", Field: "--collection-source/--collector/--source-domain"}},
+			Evidence: []model.Evidence{{Source: "operator", Field: "--collection-source/--source-domain"}},
 		}}
 	}
 	plan := model.CollectionPlan{
@@ -141,7 +123,7 @@ func Run(input Input) model.Report {
 		digest := sha256.Sum256([]byte(input.Fingerprint + "\x00collection-source=ebpf-obi\x00domain=" + domain))
 		fingerprint = "sha256:" + hex.EncodeToString(digest[:])
 	} else if source == "ebpf-otlp" {
-		digest := sha256.Sum256([]byte(input.Fingerprint + "\x00collection-source=ebpf-otlp\x00collector=" + collector + "\x00domain=" + domain))
+		digest := sha256.Sum256([]byte(input.Fingerprint + "\x00collection-source=ebpf-otlp\x00domain=" + domain))
 		fingerprint = "sha256:" + hex.EncodeToString(digest[:])
 	}
 	return model.Report{
@@ -200,24 +182,21 @@ func isEBPFCollection(source string) bool {
 	return source == "ebpf-obi" || source == "ebpf-otlp"
 }
 
-func assessEBPFServices(services []model.ServiceAssessment, source, collector string) []model.ServiceAssessment {
+func assessEBPFServices(services []model.ServiceAssessment, source string) []model.ServiceAssessment {
 	for i := range services {
 		service := &services[i]
 		if service.WorkloadEvidence.Status != model.FactConfirmed {
 			continue
 		}
 		selection := "--collection-source=" + source
-		if source == "ebpf-otlp" {
-			selection += "/--collector=" + collector
-		}
 		evidence := []model.Evidence{{Source: "operator", Field: selection}}
 		identityMessage := "Workload identity is selected, but its OBI-emitted service.name and namespace need runtime confirmation"
 		instrumentationMessage := "OBI collection is selected; kernel access, target support, and actual process coverage are not statically established"
 		exporterMessage := "OBI-to-Bering OTLP delivery and retained exports require runtime verification; no application SDK exporter is required"
 		if source == "ebpf-otlp" {
-			identityMessage = "Workload identity is selected, but the collector-emitted service.name and namespace need runtime confirmation"
-			instrumentationMessage = "An eBPF collector is selected; kernel compatibility, protocol support, target support, and actual process coverage are not statically established"
-			exporterMessage = "Collector-to-Bering OTLP delivery and retained exports require runtime verification; no application SDK exporter is required"
+			identityMessage = "Workload identity is selected, but eBPF OTLP-emitted service.name and namespace need runtime confirmation"
+			instrumentationMessage = "Generic eBPF OTLP collection is selected; kernel compatibility, protocol support, target support, and actual process coverage are not statically established"
+			exporterMessage = "eBPF OTLP delivery to Bering and retained exports require runtime verification; no application SDK exporter is required"
 		}
 		if service.Identity.Status == model.FactAbsent || service.Identity.Status == model.FactUnknown {
 			service.Identity = model.Fact{
@@ -259,13 +238,13 @@ func findingsForSource(services []model.ServiceAssessment, operationFacts []mode
 				if source == "ebpf-obi" {
 					items[i].Action = "Deploy OBI separately and verify kernel permissions, target support, and observed process coverage."
 				} else {
-					items[i].Action = "Deploy the declared eBPF collector separately and verify kernel compatibility, protocol and target support, and observed process coverage."
+					items[i].Action = "Deploy an eBPF OTLP producer separately and verify kernel compatibility, protocol and target support, and observed process coverage."
 				}
 			case "export.traces_path":
 				if source == "ebpf-obi" {
 					items[i].Action = "Configure OBI OTLP export to the declared Bering source and verify accepted exports."
 				} else {
-					items[i].Action = "Configure the declared collector's OTLP export to the matching Bering source and verify accepted exports."
+					items[i].Action = "Configure the eBPF producer's OTLP export to the matching Bering source and verify accepted exports."
 				}
 			case "propagation.http":
 				items[i].Action = "Inspect actual cross-service context links and operation coverage in Bering."

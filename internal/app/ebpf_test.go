@@ -102,7 +102,7 @@ spec:
 	stderr.Reset()
 	genericOut := filepath.Join(root, "generic-preflight")
 	code = runner.Run([]string{"analyze", "--source", "deployment=" + root, "--goal", goal,
-		"--out-dir", genericOut, "--collection-source", "ebpf-otlp", "--collector", "collector-a", "--source-domain", "deployment-a"})
+		"--out-dir", genericOut, "--collection-source", "ebpf-otlp", "--source-domain", "deployment-a"})
 	if code != 0 {
 		t.Fatalf("generic CLI failed (%d): %s", code, stderr.String())
 	}
@@ -114,7 +114,13 @@ spec:
 		t.Fatal(err)
 	}
 	if plan.Contract.Version != model.PlanContractVersionEBPFOTLP || len(plan.TraceSources) != 1 ||
-		plan.TraceSources[0].System != "collector-a" || plan.TraceSources[0].BeringInput != "ebpf-otlp" || plan.TraceSources[0].Domain != "deployment-a" {
-		t.Fatalf("generic CLI did not emit named collector handoff: %+v", plan)
+		plan.TraceSources[0].System != "ebpf-otlp" || plan.TraceSources[0].BeringInput != "ebpf-otlp" || plan.TraceSources[0].Domain != "deployment-a" {
+		t.Fatalf("generic CLI did not emit vendor-neutral eBPF OTLP handoff: %+v", plan)
+	}
+
+	stderr.Reset()
+	if code := runner.Run([]string{"analyze", "--collector", "collector-a"}); code != 1 ||
+		!bytes.Contains(stderr.Bytes(), []byte("flag provided but not defined: -collector")) {
+		t.Fatalf("removed collector flag was not rejected: code=%d stderr=%q", code, stderr.String())
 	}
 }

@@ -50,7 +50,6 @@ func (r *Runner) runAnalyze(args []string) int {
 	goalPath := fs.String("goal", "", "Path to the Procrustes goal YAML")
 	outDir := fs.String("out-dir", "", "Directory for report and handoff artifacts")
 	collectionSource := fs.String("collection-source", "native", "Trace collection source: native, ebpf-obi, or ebpf-otlp")
-	collector := fs.String("collector", "", "Declared collector name; required for ebpf-otlp")
 	sourceDomain := fs.String("source-domain", "default", "eBPF collection deployment domain, shared by its agents")
 	failOnBlocked := fs.Bool("fail-on-blocked", false, "Return exit code 2 when the selected capability is blocked")
 	if err := fs.Parse(args); err != nil {
@@ -60,7 +59,7 @@ func (r *Runner) runAnalyze(args []string) int {
 		fmt.Fprintln(r.stderr, "--goal and --out-dir are required")
 		return 1
 	}
-	if err := analyze.ValidateCollectionProfile(*collectionSource, *collector, *sourceDomain); err != nil {
+	if err := analyze.ValidateCollection(*collectionSource, *sourceDomain); err != nil {
 		fmt.Fprintf(r.stderr, "collection source: %v\n", err)
 		return 1
 	}
@@ -85,7 +84,7 @@ func (r *Runner) runAnalyze(args []string) int {
 	}
 	report := analyze.Run(analyze.Input{
 		Goal: goal, Sources: sources, Fingerprint: source.Fingerprint(goalRaw, files), Inventory: scan.Files(files),
-		CollectionSource: *collectionSource, Collector: *collector, SourceDomain: *sourceDomain,
+		CollectionSource: *collectionSource, SourceDomain: *sourceDomain,
 	})
 	if err := output.Write(*outDir, report); err != nil {
 		fmt.Fprintf(r.stderr, "write result: %v\n", err)
@@ -101,7 +100,7 @@ func (r *Runner) runAnalyze(args []string) int {
 
 func (r *Runner) usage() {
 	fmt.Fprintln(r.stderr, "Usage:")
-	fmt.Fprintln(r.stderr, "  procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi|ebpf-otlp] [--collector <name>] [--source-domain <deployment>] [--fail-on-blocked]")
+	fmt.Fprintln(r.stderr, "  procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi|ebpf-otlp] [--source-domain <deployment>] [--fail-on-blocked]")
 	fmt.Fprintln(r.stderr, "  procrustes version")
 }
 
