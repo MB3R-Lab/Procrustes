@@ -85,6 +85,39 @@ func TestEBPFSourcePreservesIdentityEvidenceAndConflicts(t *testing.T) {
 	}
 }
 
+func TestGenericEBPFCollectorHandoffKeepsRuntimeCapabilitiesUnknown(t *testing.T) {
+	input := ebpfInput(model.Fact{Status: model.FactAbsent, Message: "No application SDK identity"})
+	input.CollectionSource = "ebpf-otlp"
+	input.Collector = "collector-a"
+	report := analyze.Run(input)
+	if report.GoalStatus != model.CapabilityPartial || len(report.Blockers) != 0 {
+		t.Fatalf("generic collector was blocked or asserted ready: status=%s blockers=%+v", report.GoalStatus, report.Blockers)
+	}
+	if report.Contract.Version != model.ReportContractVersionEBPFOTLP || report.CollectionPlan.Contract.Version != model.PlanContractVersionEBPFOTLP {
+		t.Fatalf("generic contract versions mismatch: report=%s plan=%s", report.Contract.Version, report.CollectionPlan.Contract.Version)
+	}
+	if len(report.CollectionPlan.TraceSources) != 1 {
+		t.Fatalf("generic handoff missing: %+v", report.CollectionPlan.TraceSources)
+	}
+	source := report.CollectionPlan.TraceSources[0]
+	if source.System != "collector-a" || source.BeringInput != "ebpf-otlp" || source.Domain != "deployment-a" || source.AdapterRequired {
+		t.Fatalf("generic Bering handoff mismatch: %+v", source)
+	}
+	service := report.Services[0]
+	if service.Identity.Status != model.FactUnknown || service.Instrumentation.Status != model.FactUnknown || service.Exporter.Status != model.FactUnknown || service.Propagation.Status != model.FactUnknown {
+		t.Fatalf("static analysis invented collector runtime coverage: %+v", service)
+	}
+	joined := strings.ToLower(strings.Join(report.Limitations, " "))
+	if !strings.Contains(joined, "kernel compatibility") || !strings.Contains(joined, "protocol support") || !strings.Contains(joined, "runtime evidence") {
+		t.Fatalf("collector capability unknowns missing: %+v", report.Limitations)
+	}
+	other := input
+	other.Collector = "collector-b"
+	if analyze.Run(other).Fingerprint == report.Fingerprint {
+		t.Fatal("different declared collectors have the same fingerprint")
+	}
+}
+
 func TestCollectionSelectionValidation(t *testing.T) {
 	for _, item := range []struct{ source, domain string }{{"native", "default"}, {"ebpf-obi", "deployment-a"}, {"ebpf-obi", ""}} {
 		if err := analyze.ValidateCollection(item.source, item.domain); err != nil {
@@ -94,6 +127,21 @@ func TestCollectionSelectionValidation(t *testing.T) {
 	for _, item := range []struct{ source, domain string }{{"unknown", "default"}, {"native", "deployment-a"}, {"ebpf-obi", "bad domain"}} {
 		if err := analyze.ValidateCollection(item.source, item.domain); err == nil {
 			t.Fatalf("invalid selection accepted: %+v", item)
+		}
+	}
+	for _, item := range []struct{ source, collector, domain string }{
+		{"ebpf-otlp", "collector-a", "deployment-a"}, {"ebpf-otlp", "COLLECTOR.A", ""},
+	} {
+		if err := analyze.ValidateCollectionProfile(item.source, item.collector, item.domain); err != nil {
+			t.Fatalf("valid generic selection rejected: %+v: %v", item, err)
+		}
+	}
+	for _, item := range []struct{ source, collector, domain string }{
+		{"ebpf-otlp", "", "default"}, {"ebpf-otlp", "bad collector", "default"},
+		{"native", "collector-a", "default"}, {"ebpf-obi", "collector-a", "default"},
+	} {
+		if err := analyze.ValidateCollectionProfile(item.source, item.collector, item.domain); err == nil {
+			t.Fatalf("invalid generic selection accepted: %+v", item)
 		}
 	}
 }

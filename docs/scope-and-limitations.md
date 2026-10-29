@@ -5,6 +5,7 @@
 - rendered Kubernetes and Docker Compose deployment evidence
 - OpenTelemetry and Jaeger/OpenTracing paths
 - explicit OBI eBPF collection handoff without application SDK requirements
+- named eBPF OTLP collector handoff without static kernel or protocol claims
 - conservative inventory for Zipkin, Grafana Tempo, and Apache SkyWalking
 - one synchronous HTTP operation
 - exact Tracetest method/path matching
@@ -32,5 +33,11 @@ protocol coverage, OTLP delivery, observed service identity, or distributed
 context. These remain `UNKNOWN`; Bering must inspect actual exports and signal
 quality. Workload identity conflicts and missing deployment evidence still block
 the corresponding capability.
+
+With `--collection-source ebpf-otlp`, the required collector name identifies
+the selected source but does not establish its capabilities. Static analysis
+does not prove kernel compatibility, protocol or target support, actual process
+coverage, OTLP delivery, service identity, or distributed context. These remain
+`UNKNOWN` and require retained Bering runtime evidence.
 
 Secret values are never resolved or printed. Their dependent facts remain `UNKNOWN`.
