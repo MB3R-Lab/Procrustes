@@ -56,7 +56,7 @@ go run ./cmd/procrustes analyze \
 General form:
 
 ```text
-procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi] [--source-domain <deployment>] [--fail-on-blocked]
+procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi|ebpf-otlp] [--source-domain <deployment>] [--fail-on-blocked]
 ```
 
 A source can be a directory or a supported manifest, configuration, module, or source file. Explicit aliases keep evidence paths stable across machines.
@@ -96,6 +96,28 @@ sources:
 for agents in one collection deployment; it is not a host or replica label.
 The collection plan is a handoff instruction. Only Bering's accepted exports,
 observed identities, and signal quality can establish actual coverage.
+
+### Generic eBPF OTLP collection
+
+Use `--collection-source ebpf-otlp` for an external eBPF producer that exports
+OTLP. This is a vendor-neutral collection boundary: Procrustes neither asks for
+nor fingerprints a collector name. It leaves kernel compatibility, protocol
+and target support, actual process coverage, OTLP delivery, and cross-service
+context `UNKNOWN`; Bering must establish them from retained runtime evidence.
+
+```text
+procrustes analyze --source deployment=./manifests --goal goal.yaml \
+  --collection-source ebpf-otlp --source-domain production --out-dir preflight
+
+bering discover --input ./collector-capture --input-type ebpf-otlp \
+  --source-domain production --overlay preflight/bering.overlay.yaml \
+  --out model.json --snapshot-out snapshot.json
+```
+
+The collection plan records the generic `ebpf-otlp` source kind, the logical
+deployment domain, expected services, and selected static scenario. Its
+fingerprint depends on those static inputs, source kind, and domain—not a
+vendor or producer label. Native and `ebpf-obi` output remain backward-compatible.
 
 ## Outputs
 
@@ -142,6 +164,7 @@ Kubernetes environment resolution supports literals, downward API `fieldRef`, av
 
 - OpenTelemetry identity, SDK or Operator instrumentation basis, OTLP exporter, Collector traces pipeline, and W3C propagation
 - explicit OBI collection selection with static deployment and operation checks; runtime eBPF coverage remains unknown
+- generic eBPF OTLP collection selection; kernel and protocol capabilities remain unknown until runtime
 - Jaeger/OpenTracing backend, configuration, literal service identity, initialization, and propagation
 - conservative inventory evidence for Zipkin, Grafana Tempo, and Apache SkyWalking
 

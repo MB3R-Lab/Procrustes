@@ -97,4 +97,30 @@ spec:
 	if report.GoalStatus != model.CapabilityPartial || len(report.Blockers) != 0 {
 		t.Fatalf("unobserved OBI source was asserted ready or SDK-blocked: status=%s blockers=%+v", report.GoalStatus, report.Blockers)
 	}
+
+	stdout.Reset()
+	stderr.Reset()
+	genericOut := filepath.Join(root, "generic-preflight")
+	code = runner.Run([]string{"analyze", "--source", "deployment=" + root, "--goal", goal,
+		"--out-dir", genericOut, "--collection-source", "ebpf-otlp", "--source-domain", "deployment-a"})
+	if code != 0 {
+		t.Fatalf("generic CLI failed (%d): %s", code, stderr.String())
+	}
+	planRaw, err = os.ReadFile(filepath.Join(genericOut, "collection-plan.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(planRaw, &plan); err != nil {
+		t.Fatal(err)
+	}
+	if plan.Contract.Version != model.PlanContractVersionEBPFOTLP || len(plan.TraceSources) != 1 ||
+		plan.TraceSources[0].System != "ebpf-otlp" || plan.TraceSources[0].BeringInput != "ebpf-otlp" || plan.TraceSources[0].Domain != "deployment-a" {
+		t.Fatalf("generic CLI did not emit vendor-neutral eBPF OTLP handoff: %+v", plan)
+	}
+
+	stderr.Reset()
+	if code := runner.Run([]string{"analyze", "--collector", "collector-a"}); code != 1 ||
+		!bytes.Contains(stderr.Bytes(), []byte("flag provided but not defined: -collector")) {
+		t.Fatalf("removed collector flag was not rejected: code=%d stderr=%q", code, stderr.String())
+	}
 }

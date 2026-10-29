@@ -49,8 +49,8 @@ func (r *Runner) runAnalyze(args []string) int {
 	fs.Var(&sourceValues, "source", "Static source in alias=path form; repeatable")
 	goalPath := fs.String("goal", "", "Path to the Procrustes goal YAML")
 	outDir := fs.String("out-dir", "", "Directory for report and handoff artifacts")
-	collectionSource := fs.String("collection-source", "native", "Trace collection source: native or ebpf-obi")
-	sourceDomain := fs.String("source-domain", "default", "OBI collection deployment domain, shared by its agents")
+	collectionSource := fs.String("collection-source", "native", "Trace collection source: native, ebpf-obi, or ebpf-otlp")
+	sourceDomain := fs.String("source-domain", "default", "eBPF collection deployment domain, shared by its agents")
 	failOnBlocked := fs.Bool("fail-on-blocked", false, "Return exit code 2 when the selected capability is blocked")
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -100,7 +100,7 @@ func (r *Runner) runAnalyze(args []string) int {
 
 func (r *Runner) usage() {
 	fmt.Fprintln(r.stderr, "Usage:")
-	fmt.Fprintln(r.stderr, "  procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi] [--source-domain <deployment>] [--fail-on-blocked]")
+	fmt.Fprintln(r.stderr, "  procrustes analyze --source <alias>=<path> [--source ...] --goal <goal.yaml> --out-dir <dir> [--collection-source native|ebpf-obi|ebpf-otlp] [--source-domain <deployment>] [--fail-on-blocked]")
 	fmt.Fprintln(r.stderr, "  procrustes version")
 }
 

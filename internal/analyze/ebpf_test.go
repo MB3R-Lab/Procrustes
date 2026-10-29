@@ -85,8 +85,45 @@ func TestEBPFSourcePreservesIdentityEvidenceAndConflicts(t *testing.T) {
 	}
 }
 
+func TestGenericEBPFOTLPHandoffKeepsRuntimeCapabilitiesUnknown(t *testing.T) {
+	input := ebpfInput(model.Fact{Status: model.FactAbsent, Message: "No application SDK identity"})
+	input.CollectionSource = "ebpf-otlp"
+	report := analyze.Run(input)
+	if report.GoalStatus != model.CapabilityPartial || len(report.Blockers) != 0 {
+		t.Fatalf("generic collector was blocked or asserted ready: status=%s blockers=%+v", report.GoalStatus, report.Blockers)
+	}
+	if report.Contract.Version != model.ReportContractVersionEBPFOTLP || report.CollectionPlan.Contract.Version != model.PlanContractVersionEBPFOTLP {
+		t.Fatalf("generic contract versions mismatch: report=%s plan=%s", report.Contract.Version, report.CollectionPlan.Contract.Version)
+	}
+	if len(report.CollectionPlan.TraceSources) != 1 {
+		t.Fatalf("generic handoff missing: %+v", report.CollectionPlan.TraceSources)
+	}
+	source := report.CollectionPlan.TraceSources[0]
+	if source.System != "ebpf-otlp" || source.BeringInput != "ebpf-otlp" || source.Domain != "deployment-a" || source.AdapterRequired {
+		t.Fatalf("generic Bering handoff mismatch: %+v", source)
+	}
+	service := report.Services[0]
+	if service.Identity.Status != model.FactUnknown || service.Instrumentation.Status != model.FactUnknown || service.Exporter.Status != model.FactUnknown || service.Propagation.Status != model.FactUnknown {
+		t.Fatalf("static analysis invented collector runtime coverage: %+v", service)
+	}
+	joined := strings.ToLower(strings.Join(report.Limitations, " "))
+	if !strings.Contains(joined, "kernel compatibility") || !strings.Contains(joined, "protocol support") || !strings.Contains(joined, "runtime evidence") {
+		t.Fatalf("collector capability unknowns missing: %+v", report.Limitations)
+	}
+	otherDomain := input
+	otherDomain.SourceDomain = "deployment-b"
+	if analyze.Run(otherDomain).Fingerprint == report.Fingerprint {
+		t.Fatal("different logical domains have the same fingerprint")
+	}
+	otherStaticInput := input
+	otherStaticInput.Fingerprint = "sha256:other-static-input"
+	if analyze.Run(otherStaticInput).Fingerprint == report.Fingerprint {
+		t.Fatal("different static inputs have the same fingerprint")
+	}
+}
+
 func TestCollectionSelectionValidation(t *testing.T) {
-	for _, item := range []struct{ source, domain string }{{"native", "default"}, {"ebpf-obi", "deployment-a"}, {"ebpf-obi", ""}} {
+	for _, item := range []struct{ source, domain string }{{"native", "default"}, {"ebpf-obi", "deployment-a"}, {"ebpf-obi", ""}, {"ebpf-otlp", "deployment-a"}, {"ebpf-otlp", ""}} {
 		if err := analyze.ValidateCollection(item.source, item.domain); err != nil {
 			t.Fatalf("valid selection rejected: %+v: %v", item, err)
 		}
